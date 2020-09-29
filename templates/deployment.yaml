@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "spark-hs.fullname" . }}
+  labels:
+    {{- include "spark-hs.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 50%
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "spark-hs.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "spark-hs.selectorLabels" . | nindent 8 }}
+    spec:
+     {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "spark-hs.serviceAccountName" . }}
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+          - '/opt/spark/sbin/start-history-server.sh'
+        env:
+          - name: SPARK_NO_DAEMONIZE
+            value: "false"
+          - name: SPARK_HISTORY_OPTS
+            value: "-Dspark.history.fs.logDirectory=s3a://{{ .Values.S3logPath }}"
+          - name: AWS_ROLE_SESSION_NAME
+            value: "spark-hs"
+          - name: SPARK_CONF_DIR
+            value: /opt/spark/conf
+        volumeMounts:
+          - name: config-volume
+            mountPath: /opt/spark/conf/spark-defaults.conf
+            subPath: spark-defaults.conf
+        ports:
+          - name: http
+            containerPort: {{ .Values.service.internalPort }}
+            protocol: TCP
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ template "spark-hs.fullname" . }}-spark-hs-config

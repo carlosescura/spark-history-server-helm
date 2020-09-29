@@ -1,0 +1,26 @@
+{{- if .Values.ingress.enabled -}}
+{{- $serviceName := include "spark-hs.fullname" . -}}
+{{- $servicePort := .Values.service.externalPort -}}
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: {{ template "spark-hs.fullname" . }}
+  labels:
+    app: {{ template "spark-hs.name" . }}
+    chart: {{ template "spark-hs.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+{{- with .Values.ingress.annotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+spec:
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: {{ .Values.ingress.path }}
+            backend:
+              serviceName: {{ $serviceName }}
+              servicePort: {{ $servicePort }}
+{{- end }}
